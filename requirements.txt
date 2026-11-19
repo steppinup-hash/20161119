@@ -1,0 +1,2 @@
+# Python dependencies
+# This project is built with zero external Python dependencies using the standard library.

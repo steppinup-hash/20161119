@@ -1,0 +1,1967 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>대학생 스마트 구독 & 고정 지출 리밸런싱 AI (Step 1 · 2 · 3)</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#f0f9ff',
+              100: '#e0f2fe',
+              500: '#0284c7',
+              600: '#0369a1',
+              700: '#075985',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <!-- Chart.js for Savings Tracker visualizations -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Pretendard:wght@300;400;500;600;700;800&display=swap');
+    body { font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, sans-serif; }
+    .glass-card { background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(12px); }
+    .gradient-hero { background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0369a1 100%); }
+    .badge-glow { box-shadow: 0 0 15px rgba(2, 132, 199, 0.35); }
+    input[type=range] { accent-color: #0284c7; }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col">
+
+  <!-- Toast Notification Container -->
+  <div id="toast-container" class="fixed top-5 right-5 z-50 flex flex-col gap-3 pointer-events-none w-96 max-w-[90vw]"></div>
+
+  <!-- Header & Top Navigation -->
+  <header class="gradient-hero text-white shadow-lg sticky top-0 z-40">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5 flex flex-wrap items-center justify-between gap-4">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-sky-500/30 border border-sky-400/40 flex items-center justify-center text-sky-300 text-xl font-black shadow-inner">
+          <i class="fa-solid fa-graduation-cap"></i>
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <h1 class="text-lg font-bold tracking-tight">대학생 스마트 구독 리밸런싱 AI</h1>
+            <span id="header-stage-badge" class="text-xs bg-emerald-500/30 text-emerald-200 border border-emerald-400/30 px-2 py-0.5 rounded-full font-semibold">Step 1·2·3 통합 완료</span>
+          </div>
+          <p class="text-xs text-slate-300">OCR 입력 · AI 리밸런싱 · 라이프사이클 프로필 · 노션 4대 DB 연동</p>
+        </div>
+      </div>
+
+      <!-- Stage Stepper Pills (Interactive: Step 1, Step 2, Step 3) -->
+      <div class="flex items-center gap-1.5 bg-slate-900/60 p-1.5 rounded-xl border border-white/10 text-xs">
+        <button id="step-btn-1" onclick="switchStage(1)" class="px-3 py-1.5 rounded-lg font-bold flex items-center gap-1.5 transition bg-sky-500 text-white shadow-sm">
+          <i class="fa-solid fa-circle-check text-sky-200"></i> Step 1: 데이터 입력·OCR
+        </button>
+        <button id="step-btn-2" onclick="switchStage(2)" class="px-3 py-1.5 rounded-lg font-medium text-slate-300 hover:text-white flex items-center gap-1.5 transition">
+          <i class="fa-solid fa-chart-pie text-sky-400"></i> Step 2: AI 리밸런싱
+        </button>
+        <button id="step-btn-3" onclick="switchStage(3)" class="px-3 py-1.5 rounded-lg font-medium text-slate-300 hover:text-white flex items-center gap-1.5 transition">
+          <i class="fa-solid fa-bell text-amber-400"></i> Step 3: 프로필·노션 통합
+        </button>
+      </div>
+
+      <!-- Action Buttons -->
+      <div class="flex items-center gap-2">
+        <button onclick="openSettingsModal()" class="flex items-center gap-1.5 text-xs bg-white/10 hover:bg-white/20 text-white px-3 py-2 rounded-lg font-semibold transition border border-white/15">
+          <i class="fa-solid fa-gear text-sky-300"></i>
+          <span>API & 노션 설정</span>
+          <span id="config-status-dot" class="w-2 h-2 rounded-full bg-emerald-400 ml-1"></span>
+        </button>
+        <button onclick="seedSampleData()" class="flex items-center gap-1.5 text-xs bg-sky-500 hover:bg-sky-400 text-white px-3 py-2 rounded-lg font-bold transition shadow-sm">
+          <i class="fa-solid fa-wand-magic-sparkles"></i>
+          <span>샘플 데이터 로드</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content Layout -->
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex-1 w-full flex flex-col gap-6">
+
+    <!-- KPI & Statistics Bar (4 Global Cards) -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <!-- Stat 1 -->
+      <div class="glass-card rounded-2xl p-4 border border-slate-200/80 shadow-sm flex items-center justify-between">
+        <div>
+          <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">월 총 구독 지출</p>
+          <p id="stat-total-spending" class="text-2xl font-black text-slate-900 mt-1">₩68,790</p>
+          <p class="text-[11px] text-slate-500 mt-0.5">목표 예산: <span id="stat-budget-val" class="font-bold text-sky-600">₩35,000</span></p>
+        </div>
+        <div class="w-12 h-12 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center text-xl">
+          <i class="fa-solid fa-credit-card"></i>
+        </div>
+      </div>
+
+      <!-- Stat 2: Step 3 Budget Achievement Rate KPI -->
+      <div class="glass-card rounded-2xl p-4 border border-slate-200/80 shadow-sm flex items-center justify-between">
+        <div>
+          <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">목표 예산 달성률</p>
+          <div class="flex items-baseline gap-2 mt-1">
+            <span id="stat-budget-achievement" class="text-2xl font-black text-indigo-600">85.0%</span>
+            <span class="text-xs bg-indigo-100 text-indigo-800 font-bold px-1.5 py-0.5 rounded">KPI 달성 (≥80%)</span>
+          </div>
+          <p class="text-[11px] text-slate-500 mt-0.5">라이프사이클: <strong id="stat-lifecycle-text" class="text-indigo-700">일반학기</strong></p>
+        </div>
+        <div class="w-12 h-12 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center text-xl">
+          <i class="fa-solid fa-bullseye"></i>
+        </div>
+      </div>
+
+      <!-- Stat 3: Step 3 D-3 Auto-renewal Defense Rate KPI -->
+      <div class="glass-card rounded-2xl p-4 border border-slate-200/80 shadow-sm flex items-center justify-between">
+        <div>
+          <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">D-3 자동 갱신 방어율</p>
+          <div class="flex items-baseline gap-2 mt-1">
+            <span id="stat-defense-rate" class="text-2xl font-black text-emerald-600">66.7%</span>
+            <span class="text-xs bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.5 rounded">KPI 달성 (≥40%)</span>
+          </div>
+          <p class="text-[11px] text-slate-500 mt-0.5">30초 초간단 해지 가이드 연동</p>
+        </div>
+        <div class="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center text-xl">
+          <i class="fa-solid fa-shield-halved"></i>
+        </div>
+      </div>
+
+      <!-- Stat 4: Step 3 Notion 4-DB Sync Rate KPI -->
+      <div class="glass-card rounded-2xl p-4 border border-slate-200/80 shadow-sm flex items-center justify-between">
+        <div>
+          <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">노션 4대 DB 동기화</p>
+          <div class="flex items-baseline gap-2 mt-1">
+            <span id="stat-sync-rate" class="text-2xl font-black text-amber-600">100%</span>
+            <span class="text-xs bg-amber-100 text-amber-800 font-bold px-1.5 py-0.5 rounded">KPI 달성 (≥99.5%)</span>
+          </div>
+          <p class="text-[11px] text-slate-500 mt-0.5">Profiles/Subs/Reports/Savings</p>
+        </div>
+        <div class="w-12 h-12 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center text-xl">
+          <i class="fa-brands fa-notion"></i>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- VIEW CONTAINER 1: STEP 1 (데이터 입력 & OCR) -->
+    <!-- ========================================== -->
+    <div id="view-step-1" class="flex flex-col gap-6">
+
+      <!-- Step 1 Pipeline Banner -->
+      <div class="bg-gradient-to-r from-sky-50 via-indigo-50 to-white border border-sky-200/70 rounded-2xl p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-sm">
+        <div class="flex items-center gap-3">
+          <span class="flex h-3 w-3 relative">
+            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-sky-400 opacity-75"></span>
+            <span class="relative inline-flex rounded-full h-3 w-3 bg-sky-500"></span>
+          </span>
+          <div>
+            <p class="text-xs font-bold text-sky-900">PRD Step 1 실행 엔진 활성화</p>
+            <p class="text-xs text-sky-700">OpenRouter <code class="bg-sky-100 px-1 py-0.5 rounded font-mono font-bold text-sky-800">google/gemma-4-26b-a4b-it:free</code> (Fallback: <code class="bg-sky-100 px-1 py-0.5 rounded font-mono text-sky-800">gemini-2.0-flash-exp:free</code>) & Notion API 연동</p>
+          </div>
+        </div>
+        <div class="flex items-center gap-2">
+          <button onclick="switchStage(2)" class="text-xs bg-sky-600 hover:bg-sky-500 text-white font-bold px-3.5 py-2 rounded-xl shadow-sm transition flex items-center gap-1.5">
+            <span>Step 2: 가성비 분석 및 AI 리밸런싱</span>
+            <i class="fa-solid fa-arrow-right"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- Core Interactive Section: Input & Verification Grid -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+        <!-- LEFT COLUMN: Data Collection Component (Tabs) (7 Cols) -->
+        <div class="lg:col-span-7 flex flex-col gap-4">
+          <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            <div class="border-b border-slate-200 bg-slate-50/70 p-2 flex items-center justify-between">
+              <div class="flex items-center gap-1">
+                <button id="tab-btn-image" onclick="switchInputTab('image')" class="px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 bg-white text-sky-600 shadow-sm border border-slate-200/80">
+                  <i class="fa-regular fa-image"></i>
+                  <span>영수증/결제 캡처 이미지</span>
+                </button>
+                <button id="tab-btn-text" onclick="switchInputTab('text')" class="px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:text-slate-900 transition flex items-center gap-1.5">
+                  <i class="fa-regular fa-comment-dots"></i>
+                  <span>결제 문자 / 텍스트</span>
+                </button>
+                <button id="tab-btn-manual" onclick="switchInputTab('manual')" class="px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:text-slate-900 transition flex items-center gap-1.5">
+                  <i class="fa-solid fa-pen-to-square"></i>
+                  <span>직접 수동 입력</span>
+                </button>
+              </div>
+              <span class="text-[11px] font-semibold text-slate-400 hidden sm:inline mr-2">3.1 데이터 수집 컴포넌트</span>
+            </div>
+
+            <div class="p-5">
+              <!-- TAB 1: Image Dropzone -->
+              <div id="tab-content-image" class="flex flex-col gap-4">
+                <div id="dropzone" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event)" onclick="document.getElementById('file-input').click()"
+                     class="border-2 border-dashed border-slate-300 hover:border-sky-500 bg-slate-50/50 hover:bg-sky-50/30 rounded-2xl p-8 flex flex-col items-center justify-center cursor-pointer transition text-center group">
+                  <input id="file-input" type="file" accept="image/png,image/jpeg,image/webp,image/heic" class="hidden" onchange="handleFileSelect(event)">
+                  <div class="w-14 h-14 rounded-2xl bg-white shadow-md border border-slate-200 group-hover:border-sky-300 flex items-center justify-center text-sky-600 text-2xl group-hover:scale-105 transition">
+                    <i class="fa-solid fa-cloud-arrow-up"></i>
+                  </div>
+                  <p class="font-bold text-slate-800 text-sm mt-3">결제 영수증 또는 앱 결제내역 캡처 드롭</p>
+                  <p class="text-xs text-slate-500 mt-1">PNG, JPG, WEBP, HEIC 지원 (최대 10MB)</p>
+                  <p class="text-[11px] text-sky-600 font-semibold mt-2 bg-sky-50 px-2.5 py-0.5 rounded-full border border-sky-100">
+                    <i class="fa-solid fa-bolt mr-1"></i> 1920px 이하 클라이언트 압축 후 Base64 전송
+                  </p>
+                </div>
+
+                <div id="image-preview-wrapper" class="hidden flex-col gap-3 p-4 bg-slate-100/70 rounded-xl border border-slate-200">
+                  <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                      <span class="text-xs font-bold text-slate-700" id="preview-filename">선택된 이미지</span>
+                      <span class="text-[11px] bg-slate-200 text-slate-700 px-2 py-0.5 rounded font-mono" id="preview-filesize">0 KB</span>
+                    </div>
+                    <button onclick="clearSelectedImage()" class="text-xs text-rose-500 hover:text-rose-700 font-semibold flex items-center gap-1">
+                      <i class="fa-solid fa-trash-can"></i> 제거
+                    </button>
+                  </div>
+                  <div class="max-h-60 overflow-hidden rounded-lg border border-slate-300 bg-black flex items-center justify-center">
+                    <img id="image-preview" src="" alt="영수증 미리보기" class="max-h-60 w-auto object-contain">
+                  </div>
+                </div>
+
+                <div class="flex flex-col gap-2 pt-2 border-t border-slate-100">
+                  <p class="text-xs font-bold text-slate-600 flex items-center gap-1.5">
+                    <i class="fa-solid fa-flask text-amber-500"></i> 빠른 원클릭 테스트 영수증 프리셋:
+                  </p>
+                  <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    <button onclick="loadSampleImage('netflix')" class="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 p-2 rounded-xl text-left font-medium transition border border-slate-200/80">
+                      <span class="block font-bold text-rose-600">넷플릭스</span>
+                      <span class="text-[11px] text-slate-500">17,000원 영수증</span>
+                    </button>
+                    <button onclick="loadSampleImage('youtube')" class="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 p-2 rounded-xl text-left font-medium transition border border-slate-200/80">
+                      <span class="block font-bold text-red-600">유튜브 프리미엄</span>
+                      <span class="text-[11px] text-slate-500">14,900원 결제</span>
+                    </button>
+                    <button onclick="loadSampleImage('chatgpt')" class="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 p-2 rounded-xl text-left font-medium transition border border-slate-200/80">
+                      <span class="block font-bold text-emerald-600">ChatGPT Plus</span>
+                      <span class="text-[11px] text-slate-500">29,000원 ($20)</span>
+                    </button>
+                    <button onclick="loadSampleImage('low_quality')" class="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 p-2 rounded-xl text-left font-medium transition border border-slate-200/80">
+                      <span class="block font-bold text-amber-600">저화질/흐린사진</span>
+                      <span class="text-[11px] text-slate-500">예외(4.1) 테스트</span>
+                    </button>
+                  </div>
+                </div>
+
+                <button id="btn-parse-image" onclick="parseImage()" class="w-full bg-sky-600 hover:bg-sky-500 text-white font-bold py-3 px-4 rounded-xl shadow-md transition flex items-center justify-center gap-2">
+                  <i class="fa-solid fa-wand-magic-sparkles"></i>
+                  <span>OpenRouter Vision AI로 영수증 파싱 실행</span>
+                </button>
+              </div>
+
+              <!-- TAB 2: Textarea & Regex Detection -->
+              <div id="tab-content-text" class="hidden flex-col gap-4">
+                <div>
+                  <label class="block text-xs font-bold text-slate-700 mb-1.5 flex items-center justify-between">
+                    <span>결제 승인 문자 / 푸시 알림 복사 붙여넣기</span>
+                    <span id="detected-amounts-badge" class="text-[11px] text-sky-700 bg-sky-50 border border-sky-200 px-2 py-0.5 rounded-full font-mono font-bold hidden">
+                      <i class="fa-solid fa-coins mr-1"></i> 금액 감지됨: <span id="detected-amounts-val">0원</span>
+                    </span>
+                  </label>
+                  <textarea id="text-input" rows="5" oninput="handleTextInputChange(this.value)" placeholder="예: [KB국민카드] 11/15 14:20 넷플릭스 17,000원 결제완료 (매월 15일 정기결제)
+카드번호: 9410-1234-5678-9012"
+                            class="w-full p-3.5 rounded-xl border border-slate-300 focus:border-sky-500 focus:ring-2 focus:ring-sky-200 text-sm font-sans text-slate-800 transition leading-relaxed"></textarea>
+                </div>
+
+                <div id="pii-live-warning" class="hidden bg-amber-50 border border-amber-300/80 rounded-xl p-3 flex items-start gap-2.5">
+                  <i class="fa-solid fa-triangle-exclamation text-amber-600 mt-0.5"></i>
+                  <div class="text-xs">
+                    <p class="font-bold text-amber-900">민감정보(카드번호/주민번호) 감지 (WARN_PII_DETECTED)</p>
+                    <p class="text-amber-800 mt-0.5">보안 정책에 따라 번호가 마스킹(****) 처리되어 전송됩니다.</p>
+                  </div>
+                </div>
+
+                <div class="flex flex-col gap-2 pt-1 border-t border-slate-100">
+                  <p class="text-xs font-bold text-slate-600 flex items-center gap-1.5">
+                    <i class="fa-solid fa-comment-sms text-sky-500"></i> 테스트 결제 문자 프리셋:
+                  </p>
+                  <div class="flex flex-wrap gap-2">
+                    <button onclick="loadSampleText('netflix_sms')" class="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 rounded-lg font-medium transition border border-slate-200">
+                      [국민카드] 넷플릭스 17,000원 (카드번호 포함)
+                    </button>
+                    <button onclick="loadSampleText('youtube_sms')" class="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 rounded-lg font-medium transition border border-slate-200">
+                      [신한카드] 유튜브 14,900원 (28일 정기결제)
+                    </button>
+                    <button onclick="loadSampleText('coupang_sms')" class="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 rounded-lg font-medium transition border border-slate-200">
+                      [카카오페이] 쿠팡 와우멤버십 7,890원
+                    </button>
+                    <button onclick="loadSampleText('rrn_test')" class="text-xs bg-amber-100 hover:bg-amber-200 text-amber-800 px-3 py-1.5 rounded-lg font-medium transition border border-amber-200">
+                      주민등록번호 포함 테스트 (마스킹 확인)
+                    </button>
+                  </div>
+                </div>
+
+                <button id="btn-parse-text" onclick="parseText()" class="w-full bg-sky-600 hover:bg-sky-500 text-white font-bold py-3 px-4 rounded-xl shadow-md transition flex items-center justify-center gap-2">
+                  <i class="fa-solid fa-brain"></i>
+                  <span>결제 문자 AI 파싱 실행</span>
+                </button>
+              </div>
+
+              <!-- TAB 3: Manual Direct Input Form -->
+              <div id="tab-content-manual" class="hidden flex-col gap-4">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">서비스명</label>
+                    <input id="manual-name" type="text" placeholder="예: 넷플릭스 프리미엄" class="w-full p-2.5 rounded-xl border border-slate-300 text-sm focus:border-sky-500">
+                  </div>
+                  <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">카테고리</label>
+                    <select id="manual-category" class="w-full p-2.5 rounded-xl border border-slate-300 text-sm focus:border-sky-500">
+                      <option value="OTT">OTT</option>
+                      <option value="음원">음원</option>
+                      <option value="생산성/AI">생산성/AI</option>
+                      <option value="클라우드/저장소">클라우드/저장소</option>
+                      <option value="쇼핑/멤버십">쇼핑/멤버십</option>
+                      <option value="도서/교육">도서/교육</option>
+                      <option value="통신/생활">통신/생활</option>
+                      <option value="기타">기타</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">월 결제 금액 (원)</label>
+                    <input id="manual-amount" type="number" placeholder="예: 17000" class="w-full p-2.5 rounded-xl border border-slate-300 text-sm focus:border-sky-500">
+                  </div>
+                  <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">결제일 (매월 N일)</label>
+                    <input id="manual-date" type="number" min="1" max="31" placeholder="예: 15" class="w-full p-2.5 rounded-xl border border-slate-300 text-sm focus:border-sky-500">
+                  </div>
+                </div>
+                <button onclick="submitManualEntry()" class="w-full bg-slate-800 hover:bg-slate-700 text-white font-bold py-3 px-4 rounded-xl shadow-md transition flex items-center justify-center gap-2 mt-2">
+                  <i class="fa-solid fa-plus"></i>
+                  <span>검수 카드로 전달</span>
+                </button>
+              </div>
+
+            </div>
+          </div>
+        </div>
+
+        <!-- RIGHT COLUMN: Verification UI with Inline Editing & Tag Chips (5 Cols) -->
+        <div class="lg:col-span-5 flex flex-col gap-4">
+          <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col h-full">
+            <div class="border-b border-slate-200 bg-slate-50/70 p-3 flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <span class="w-2.5 h-2.5 rounded-full bg-sky-500"></span>
+                <h2 class="text-xs font-bold text-slate-800 uppercase tracking-wider">[검수 UI] 태그 칩 인라인 수정</h2>
+              </div>
+              <span id="review-confidence-pill" class="text-xs px-2.5 py-0.5 rounded-full font-bold bg-slate-100 text-slate-500 border border-slate-200">
+                대기 중
+              </span>
+            </div>
+
+            <div class="p-5 flex-1 flex flex-col justify-between gap-5">
+              <div id="review-empty-state" class="py-12 flex flex-col items-center justify-center text-center text-slate-400">
+                <div class="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center text-slate-300 text-2xl mb-3">
+                  <i class="fa-solid fa-clipboard-check"></i>
+                </div>
+                <p class="font-bold text-slate-600 text-sm">파싱된 구독 내역이 없습니다</p>
+                <p class="text-xs text-slate-400 mt-1 max-w-xs">왼쪽에서 영수증 이미지를 업로드하거나 결제 문자를 입력하여 AI 파싱을 실행하세요.</p>
+              </div>
+
+              <div id="review-active-card" class="hidden flex flex-col gap-4">
+                <div class="flex items-center justify-between text-[11px] bg-slate-50 p-2.5 rounded-xl border border-slate-200">
+                  <span class="text-slate-600 font-medium">
+                    <i class="fa-solid fa-microchip text-sky-500 mr-1"></i> <span id="review-model-used">OpenRouter gemma-4-26b</span>
+                  </span>
+                  <span id="review-elapsed-time" class="font-mono font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded">
+                    0.8s
+                  </span>
+                </div>
+
+                <div>
+                  <label class="block text-xs font-bold text-slate-500 mb-1">서비스명 (클릭하여 수정 가능)</label>
+                  <input id="edit-service-name" type="text" value="" class="w-full text-base font-extrabold text-slate-900 p-2.5 rounded-xl border border-slate-200 hover:border-sky-400 focus:border-sky-500 transition">
+                </div>
+
+                <div>
+                  <label class="block text-xs font-bold text-slate-500 mb-1.5">카테고리 태그 칩 (클릭하여 즉시 변경)</label>
+                  <div id="category-chips-group" class="flex flex-wrap gap-1.5"></div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-3">
+                  <div>
+                    <label class="block text-xs font-bold text-slate-500 mb-1">월 결제 금액 (원)</label>
+                    <div class="relative">
+                      <span class="absolute left-3 top-2.5 text-slate-400 font-bold">₩</span>
+                      <input id="edit-amount" type="number" value="0" class="w-full pl-8 pr-3 py-2.5 rounded-xl border border-slate-200 font-bold text-slate-900 focus:border-sky-500 transition">
+                    </div>
+                  </div>
+                  <div>
+                    <label class="block text-xs font-bold text-slate-500 mb-1">결제일 (매월 N일)</label>
+                    <div class="relative">
+                      <input id="edit-billing-date" type="number" min="1" max="31" value="1" class="w-full px-3 py-2.5 rounded-xl border border-slate-200 font-bold text-slate-900 focus:border-sky-500 transition">
+                      <span class="absolute right-3 top-2.5 text-slate-400 text-xs font-bold">일</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div id="review-pii-badge" class="hidden bg-emerald-50 border border-emerald-200 rounded-xl p-2.5 flex items-center gap-2 text-xs text-emerald-800">
+                  <i class="fa-solid fa-circle-check text-emerald-600"></i>
+                  <span>카드번호/개인정보 마스킹 안전 처리 완료</span>
+                </div>
+              </div>
+
+              <div id="review-actions-group" class="hidden flex flex-col gap-2 pt-3 border-t border-slate-100">
+                <button onclick="saveAndSyncToNotion()" class="w-full bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 text-white font-bold py-3 px-4 rounded-xl shadow-md transition flex items-center justify-center gap-2">
+                  <i class="fa-brands fa-notion text-lg"></i>
+                  <span>검수 완료 & 팀 노션 [Subscriptions] 등록</span>
+                </button>
+                <button onclick="saveToLocalOnly()" class="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold py-2.5 px-4 rounded-xl transition text-xs flex items-center justify-center gap-1.5">
+                  <i class="fa-solid fa-floppy-disk"></i>
+                  <span>로컬 DB에만 저장</span>
+                </button>
+              </div>
+
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Subscriptions Management Table -->
+      <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col gap-0">
+        <div class="p-4 sm:p-5 border-b border-slate-200 flex flex-wrap items-center justify-between gap-4 bg-slate-50/50">
+          <div>
+            <div class="flex items-center gap-2">
+              <h3 class="font-bold text-slate-900 text-base">등록된 구독 & 고정 지출 리스트</h3>
+              <span id="table-count-badge" class="bg-sky-100 text-sky-800 text-xs font-bold px-2 py-0.5 rounded-full">0건</span>
+            </div>
+            <p class="text-xs text-slate-500 mt-0.5">인식된 데이터는 로컬 DB 및 팀 노션 [Subscriptions] 데이터베이스와 실시간 동기화됩니다.</p>
+          </div>
+
+          <div class="flex items-center gap-2">
+            <button onclick="refreshSubscriptions()" class="text-xs bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 px-3 py-2 rounded-xl font-medium transition shadow-sm flex items-center gap-1.5">
+              <i class="fa-solid fa-arrows-rotate"></i> 새로고침
+            </button>
+          </div>
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-sm text-slate-600">
+            <thead class="bg-slate-50 text-[11px] uppercase font-bold text-slate-500 border-b border-slate-200">
+              <tr>
+                <th scope="col" class="py-3 px-4">서비스명</th>
+                <th scope="col" class="py-3 px-4">카테고리</th>
+                <th scope="col" class="py-3 px-4">월 결제 금액</th>
+                <th scope="col" class="py-3 px-4">결제 주기/일</th>
+                <th scope="col" class="py-3 px-4">인식 신뢰도</th>
+                <th scope="col" class="py-3 px-4">노션 연동 상태</th>
+                <th scope="col" class="py-3 px-4 text-right">관리</th>
+              </tr>
+            </thead>
+            <tbody id="subscriptions-table-body" class="divide-y divide-slate-100 font-sans"></tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ========================================================= -->
+    <!-- VIEW CONTAINER 2: STEP 2 (가성비 분석 및 AI 리밸런싱 리포트) -->
+    <!-- ========================================================= -->
+    <div id="view-step-2" class="hidden flex-col gap-6">
+
+      <!-- Step 2 Pipeline Banner -->
+      <div class="bg-gradient-to-r from-emerald-50 via-teal-50 to-white border border-emerald-200/80 rounded-2xl p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-sm">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-700 border border-emerald-400/30 flex items-center justify-center text-lg font-bold">
+            <i class="fa-solid fa-scale-balanced"></i>
+          </div>
+          <div>
+            <div class="flex items-center gap-2">
+              <h2 class="text-sm font-bold text-emerald-950">PRD Step 2: 가성비(CPU) 분석 & AI 리밸런싱 보고서</h2>
+              <span class="text-[11px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full">OpenRouter 연동</span>
+            </div>
+            <p class="text-xs text-emerald-800 mt-0.5">모델: <code class="bg-emerald-100 px-1 py-0.5 rounded font-mono font-bold text-emerald-900">nvidia/nemotron-3.5-lightning:free</code> · 응답 시간 8초 이내</p>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <button onclick="runAiRebalanceAnalysis()" id="btn-run-rebalance" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow-md transition flex items-center gap-2">
+            <i class="fa-solid fa-sparkles"></i>
+            <span>AI 리밸런싱 분석 실행</span>
+          </button>
+          <button onclick="switchStage(3)" class="bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow-md transition flex items-center gap-1.5">
+            <span>Step 3로 이동</span>
+            <i class="fa-solid fa-arrow-right"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- Zombie Scoreboard -->
+      <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
+        <div class="p-4 sm:p-5 border-b border-slate-200 bg-slate-50/70 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h3 class="font-bold text-slate-900 text-base flex items-center gap-2">
+              <i class="fa-solid fa-skull-crossbones text-rose-500"></i>
+              <span>구독 가성비(CPU) 및 좀비 구독 지수 실시간 스코어보드</span>
+            </h3>
+            <p class="text-xs text-slate-500 mt-0.5">
+              1회당 이용 단가 <code class="font-mono bg-slate-200 px-1 py-0.5 rounded">CPU = 월 금액 / max(이용 횟수, 1)</code> · 지수 80점 이상: 즉시 해지 권고, 50~79점: 파티원 전환, 50점 미만: 유지
+            </p>
+          </div>
+        </div>
+        <div class="p-5 grid grid-cols-1 md:grid-cols-2 gap-4" id="zombie-cards-container"></div>
+      </div>
+
+      <!-- AI Rebalancing Report Card -->
+      <div id="ai-report-wrapper" class="flex flex-col gap-6">
+        <div class="bg-gradient-to-r from-amber-50 via-orange-50 to-amber-100/50 border-2 border-amber-300/80 rounded-2xl p-5 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+          <div class="flex items-start gap-3.5">
+            <div class="w-12 h-12 rounded-2xl bg-amber-500 text-white flex items-center justify-center text-2xl shadow-md shrink-0">🍗</div>
+            <div>
+              <div class="flex items-center gap-2">
+                <span class="text-xs font-black text-amber-900 uppercase tracking-wider bg-amber-200/80 px-2.5 py-0.5 rounded-full">대학생 재무 비유 환산 리포트</span>
+                <span class="text-xs text-amber-700 font-semibold" id="report-generation-time">방금 생성됨</span>
+              </div>
+              <p class="text-sm font-bold text-amber-950 mt-1.5 leading-relaxed" id="report-student-metaphor"></p>
+            </div>
+          </div>
+          <div class="text-right shrink-0">
+            <p class="text-xs text-amber-800 font-semibold">월 예상 절감액 합계</p>
+            <p class="text-2xl font-black text-amber-950" id="report-total-savings">₩48,750</p>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div class="bg-white rounded-2xl border border-rose-200 shadow-sm overflow-hidden flex flex-col">
+            <div class="p-4 border-b border-rose-100 bg-rose-50/70 flex items-center justify-between">
+              <h3 class="font-bold text-rose-950 text-sm flex items-center gap-1.5">
+                <i class="fa-solid fa-ban text-rose-600"></i>
+                <span>해지 추천 Top 3 (Kill List)</span>
+              </h3>
+              <span class="text-xs bg-rose-100 text-rose-800 font-bold px-2.5 py-0.5 rounded-full">낭비 고정비 다이어트</span>
+            </div>
+            <div class="p-5 flex flex-col gap-3.5 flex-1" id="kill-list-container"></div>
+          </div>
+
+          <div class="bg-white rounded-2xl border border-sky-200 shadow-sm overflow-hidden flex flex-col">
+            <div class="p-4 border-b border-sky-100 bg-sky-50/70 flex items-center justify-between">
+              <h3 class="font-bold text-sky-950 text-sm flex items-center gap-1.5">
+                <i class="fa-solid fa-shuffle text-sky-600"></i>
+                <span>파티원 / 학생할인 전환 (Swap List)</span>
+              </h3>
+              <span class="text-xs bg-sky-100 text-sky-800 font-bold px-2.5 py-0.5 rounded-full">1/N 분담 &amp; 혜택</span>
+            </div>
+            <div class="p-5 flex flex-col gap-3.5 flex-1" id="swap-list-container"></div>
+          </div>
+        </div>
+
+        <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div>
+            <h4 class="font-bold text-slate-900 text-sm">리밸런싱 권고안 실행 및 팀 노션 [AI Reports] 연동</h4>
+            <p class="text-xs text-slate-500 mt-0.5">체크한 권고안을 채택하면 채택률(KPI ≥35%)이 기록되며, 노션 [AI Reports] 데이터베이스에 즉시 동기화됩니다.</p>
+          </div>
+          <div class="flex items-center gap-3">
+            <button onclick="commitAdoptions()" class="bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow-sm transition flex items-center gap-1.5">
+              <i class="fa-solid fa-check-double"></i>
+              <span>권고안 채택 확정</span>
+            </button>
+            <button onclick="syncCurrentReportToNotion()" class="bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow-sm transition flex items-center gap-1.5">
+              <i class="fa-brands fa-notion"></i>
+              <span>노션 [AI Reports] 동기화</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ================================================================= -->
+    <!-- VIEW CONTAINER 3: STEP 3 (대학생 프로필 구축 및 노션 4대 DB 통합 관리) -->
+    <!-- ================================================================= -->
+    <div id="view-step-3" class="hidden flex-col gap-6">
+
+      <!-- Step 3 Pipeline Banner -->
+      <div class="bg-gradient-to-r from-indigo-50 via-sky-50 to-white border border-indigo-200/80 rounded-2xl p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-sm">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-indigo-500/20 text-indigo-700 border border-indigo-400/30 flex items-center justify-center text-lg font-bold">
+            <i class="fa-brands fa-notion"></i>
+          </div>
+          <div>
+            <div class="flex items-center gap-2">
+              <h2 class="text-sm font-bold text-indigo-950">PRD Step 3: 대학생 프로필 구축 & 노션 4대 DB 통합 관리</h2>
+              <span class="text-[11px] bg-indigo-100 text-indigo-800 font-bold px-2 py-0.5 rounded-full">실시간 CRUD 동기화</span>
+            </div>
+            <p class="text-xs text-indigo-800 mt-0.5">D-3 자동 감지 알림 · 30초 초간단 해지 가이드 · Savings Tracker 시각화</p>
+          </div>
+        </div>
+
+        <button onclick="syncAll4NotionDatabases()" id="btn-sync-all" class="bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs px-5 py-3 rounded-xl shadow-md transition flex items-center gap-2">
+          <i class="fa-solid fa-cloud-arrow-up"></i>
+          <span>노션 4대 DB 실시간 일괄 동기화 (KPI 99.5%+)</span>
+        </button>
+      </div>
+
+      <!-- Section 1: D-3 Alerts Banner & 30-sec Cancellation Guide -->
+      <div class="bg-white rounded-2xl border border-amber-200 shadow-sm overflow-hidden flex flex-col">
+        <div class="p-4 sm:p-5 border-b border-amber-100 bg-amber-50/70 flex flex-wrap items-center justify-between gap-3">
+          <div class="flex items-center gap-2.5">
+            <span class="w-3 h-3 rounded-full bg-amber-500 animate-ping"></span>
+            <h3 class="font-extrabold text-amber-950 text-base flex items-center gap-2">
+              <i class="fa-solid fa-bell text-amber-600"></i>
+              <span>D-3 결제 감지 알림 & 30초 초간단 해지 가이드</span>
+            </h3>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="text-xs bg-amber-100 text-amber-900 font-bold px-2.5 py-1 rounded-lg">
+              자동 갱신 방어율 KPI: <strong id="d3-badge-rate">66.7%</strong> (목표 ≥40%)
+            </span>
+          </div>
+        </div>
+
+        <div class="p-5 flex flex-col gap-4" id="d3-alerts-container">
+          <!-- Dynamic D-3 alert items -->
+        </div>
+      </div>
+
+      <!-- Section 2: College Student Profile & Lifecycle Mode -->
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+        <!-- Student Profile Card -->
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 flex flex-col justify-between gap-4">
+          <div>
+            <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div class="flex items-center gap-2">
+                <div class="w-8 h-8 rounded-lg bg-sky-100 text-sky-700 flex items-center justify-center font-bold">
+                  <i class="fa-solid fa-user-graduate"></i>
+                </div>
+                <div>
+                  <h4 class="font-bold text-slate-900 text-sm">대학생 프로필 (Profiles DB)</h4>
+                  <p class="text-[11px] text-slate-500">소득 및 목표 고정비 예산 관리</p>
+                </div>
+              </div>
+              <span id="profile-notion-badge" class="text-[10px] bg-emerald-50 text-emerald-700 font-bold px-2 py-0.5 rounded-full border border-emerald-200">연동됨</span>
+            </div>
+
+            <div class="flex flex-col gap-3 mt-4 text-xs">
+              <div>
+                <label class="block font-bold text-slate-600 mb-1">학생 이름 (Student Name)</label>
+                <input id="prof-name" type="text" value="김대학" class="w-full p-2.5 rounded-xl border border-slate-200 font-bold text-slate-900 focus:border-sky-500">
+              </div>
+              <div>
+                <label class="block font-bold text-slate-600 mb-1">월 소득 (Income: 알바비/용돈)</label>
+                <div class="relative">
+                  <span class="absolute left-3 top-2.5 text-slate-400 font-bold">₩</span>
+                  <input id="prof-income" type="number" value="850000" class="w-full pl-8 pr-3 py-2.5 rounded-xl border border-slate-200 font-bold text-slate-900 focus:border-sky-500">
+                </div>
+              </div>
+              <div>
+                <label class="block font-bold text-slate-600 mb-1">목표 고정비 예산 (Budget)</label>
+                <div class="relative">
+                  <span class="absolute left-3 top-2.5 text-slate-400 font-bold">₩</span>
+                  <input id="prof-budget" type="number" value="35000" class="w-full pl-8 pr-3 py-2.5 rounded-xl border border-slate-200 font-bold text-slate-900 focus:border-sky-500">
+                </div>
+              </div>
+
+              <!-- Lifecycle Switcher -->
+              <div>
+                <label class="block font-bold text-slate-600 mb-1.5">라이프사이클 모드 (Lifecycle)</label>
+                <div class="grid grid-cols-3 gap-1.5" id="lifecycle-btn-group">
+                  <button type="button" onclick="selectLifecycle('일반학기')" id="life-btn-일반학기" class="p-2 rounded-xl text-center font-bold border transition bg-sky-50 border-sky-400 text-sky-800">
+                    일반학기
+                  </button>
+                  <button type="button" onclick="selectLifecycle('시험기간')" id="life-btn-시험기간" class="p-2 rounded-xl text-center font-medium border border-slate-200 text-slate-600 hover:bg-slate-50 transition">
+                    시험기간
+                  </button>
+                  <button type="button" onclick="selectLifecycle('방학')" id="life-btn-방학" class="p-2 rounded-xl text-center font-medium border border-slate-200 text-slate-600 hover:bg-slate-50 transition">
+                    방학
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <button onclick="saveProfile()" class="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-2.5 rounded-xl text-xs transition flex items-center justify-center gap-1.5 shadow-sm">
+            <i class="fa-solid fa-floppy-disk"></i>
+            <span>프로필 저장 &amp; 노션 동기화</span>
+          </button>
+        </div>
+
+        <!-- Section 3: Savings Tracker Visualizations (2 Cols) -->
+        <div class="lg:col-span-2 bg-white rounded-2xl border border-slate-200 shadow-sm p-5 flex flex-col justify-between gap-5">
+          <div>
+            <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div>
+                <h4 class="font-bold text-slate-900 text-sm flex items-center gap-2">
+                  <i class="fa-solid fa-chart-line text-indigo-600"></i>
+                  <span>Savings Tracker 시각화 대시보드</span>
+                </h4>
+                <p class="text-[11px] text-slate-500">목표 예산 대비 지출 게이지 및 6개월 누적 절감액 추이</p>
+              </div>
+              <span class="text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-full">
+                달성률 <span id="tracker-achievement-percent">85%</span>
+              </span>
+            </div>
+
+            <!-- Target Budget Gauge -->
+            <div class="mt-4 p-4 rounded-xl bg-slate-50 border border-slate-200 flex flex-col gap-2">
+              <div class="flex items-center justify-between text-xs">
+                <span class="font-bold text-slate-700">목표 고정비 예산 대비 지출 게이지:</span>
+                <span class="font-bold text-slate-900">
+                  현재 지출 <strong id="gauge-current" class="text-indigo-600">₩68,790</strong> / 목표 <strong id="gauge-budget">₩35,000</strong>
+                </span>
+              </div>
+              <div class="w-full bg-slate-200 h-3 rounded-full overflow-hidden">
+                <div id="gauge-bar" class="h-3 rounded-full bg-indigo-600 transition-all duration-500" style="width: 85%"></div>
+              </div>
+              <p class="text-[11px] text-slate-500">
+                <i class="fa-solid fa-circle-info text-sky-500 mr-1"></i>
+                리밸런싱 채택 시 월 ₩48,750이 절감되어 목표 예산 100% 충족 범위로 복귀합니다!
+              </p>
+            </div>
+
+            <!-- 2 Charts Grid: Area Chart & Donut Chart -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+              <!-- Area Chart -->
+              <div class="p-3 bg-white rounded-xl border border-slate-200 flex flex-col gap-1">
+                <p class="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                  <i class="fa-solid fa-chart-area text-indigo-500"></i> 최근 6개월 누적 절감액 Area Chart
+                </p>
+                <div class="h-44 w-full">
+                  <canvas id="savingsAreaChart"></canvas>
+                </div>
+              </div>
+
+              <!-- Donut Chart -->
+              <div class="p-3 bg-white rounded-xl border border-slate-200 flex flex-col gap-1">
+                <p class="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                  <i class="fa-solid fa-chart-pie text-emerald-500"></i> 카테고리별 지출 도넛 차트
+                </p>
+                <div class="h-44 w-full flex items-center justify-center">
+                  <canvas id="categoryDonutChart"></canvas>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Section 4: Notion 4 Databases Integration Overview Board -->
+      <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
+        <div class="p-4 sm:p-5 border-b border-slate-200 bg-slate-50/70 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h3 class="font-bold text-slate-900 text-base flex items-center gap-2">
+              <i class="fa-brands fa-notion text-black"></i>
+              <span>노션 4대 데이터베이스 상호 연동 명세 현황판</span>
+            </h3>
+            <p class="text-xs text-slate-500 mt-0.5">PRD Step 3 규격: Profiles, Subscriptions, AI Reports, Savings History 실시간 CRUD 동기화</p>
+          </div>
+          <span class="text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-200 px-3 py-1 rounded-lg">
+            CRUD 동기화 성공률: <strong id="board-sync-rate">100%</strong> (KPI ≥99.5%)
+          </span>
+        </div>
+
+        <div class="p-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <!-- DB 1 -->
+          <div class="p-4 rounded-xl border border-slate-200 bg-slate-50/50 flex flex-col justify-between gap-2">
+            <div>
+              <span class="text-[10px] font-bold bg-sky-100 text-sky-800 px-2 py-0.5 rounded-full">DB 1</span>
+              <h5 class="font-extrabold text-slate-900 text-sm mt-1">Profiles</h5>
+              <p class="text-[11px] text-slate-500 mt-1">대학생 기본 프로필 &amp; 소득 예산 관리</p>
+              <div class="mt-2 text-[11px] font-mono text-slate-600 bg-white p-2 rounded border border-slate-200">
+                Student Name (Title)<br>
+                Income (Number)<br>
+                Budget (Number)
+              </div>
+            </div>
+            <span class="text-[11px] text-emerald-600 font-bold flex items-center gap-1">
+              <i class="fa-solid fa-circle-check"></i> 동기화 활성
+            </span>
+          </div>
+
+          <!-- DB 2 -->
+          <div class="p-4 rounded-xl border border-slate-200 bg-slate-50/50 flex flex-col justify-between gap-2">
+            <div>
+              <span class="text-[10px] font-bold bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded-full">DB 2</span>
+              <h5 class="font-extrabold text-slate-900 text-sm mt-1">Subscriptions</h5>
+              <p class="text-[11px] text-slate-500 mt-1">활성/해지 구독 항목 및 결제일 추적</p>
+              <div class="mt-2 text-[11px] font-mono text-slate-600 bg-white p-2 rounded border border-slate-200">
+                Service Name (Title)<br>
+                Monthly Cost (Number)<br>
+                Billing Day (Number)<br>
+                Status (Status)
+              </div>
+            </div>
+            <span class="text-[11px] text-emerald-600 font-bold flex items-center gap-1">
+              <i class="fa-solid fa-circle-check"></i> 동기화 활성
+            </span>
+          </div>
+
+          <!-- DB 3 -->
+          <div class="p-4 rounded-xl border border-slate-200 bg-slate-50/50 flex flex-col justify-between gap-2">
+            <div>
+              <span class="text-[10px] font-bold bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full">DB 3</span>
+              <h5 class="font-extrabold text-slate-900 text-sm mt-1">AI Reports</h5>
+              <p class="text-[11px] text-slate-500 mt-1">2단계 AI 리밸런싱 보고서 히스토리</p>
+              <div class="mt-2 text-[11px] font-mono text-slate-600 bg-white p-2 rounded border border-slate-200">
+                Report Title (Title)<br>
+                Monthly Savings (Number)<br>
+                Annual Savings (Number)
+              </div>
+            </div>
+            <span class="text-[11px] text-emerald-600 font-bold flex items-center gap-1">
+              <i class="fa-solid fa-circle-check"></i> 동기화 활성
+            </span>
+          </div>
+
+          <!-- DB 4 -->
+          <div class="p-4 rounded-xl border border-slate-200 bg-slate-50/50 flex flex-col justify-between gap-2">
+            <div>
+              <span class="text-[10px] font-bold bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full">DB 4</span>
+              <h5 class="font-extrabold text-slate-900 text-sm mt-1">Savings History</h5>
+              <p class="text-[11px] text-slate-500 mt-1">구독 다이어트 성공 시 절감 금액 누적</p>
+              <div class="mt-2 text-[11px] font-mono text-slate-600 bg-white p-2 rounded border border-slate-200">
+                Log Title (Title)<br>
+                Saved Amount (Number)<br>
+                Saved Date (Date)
+              </div>
+            </div>
+            <span class="text-[11px] text-emerald-600 font-bold flex items-center gap-1">
+              <i class="fa-solid fa-circle-check"></i> 동기화 활성
+            </span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+  </main>
+
+  <!-- 30-sec Cancellation Guide Modal -->
+  <div id="cancel-guide-modal" class="hidden fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 flex flex-col gap-4">
+      <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+        <div class="flex items-center gap-2.5">
+          <div class="w-9 h-9 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center font-bold text-lg">
+            <i class="fa-solid fa-stopwatch"></i>
+          </div>
+          <div>
+            <h3 class="font-bold text-slate-900 text-sm" id="guide-modal-title">30초 초간단 해지 가이드</h3>
+            <p class="text-[11px] text-slate-500">공식 웹 딥링크 및 단계별 해지 절차 안내</p>
+          </div>
+        </div>
+        <button onclick="closeCancelGuideModal()" class="text-slate-400 hover:text-slate-600 text-lg">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <div class="flex flex-col gap-3 text-xs">
+        <div class="bg-sky-50 border border-sky-200 p-3 rounded-xl flex items-center justify-between">
+          <div>
+            <p class="text-[11px] text-sky-700 font-medium">원클릭 해지 설정 페이지 바로가기</p>
+            <p class="font-bold text-sky-950 mt-0.5" id="guide-modal-service">넷플릭스 멤버십 설정</p>
+          </div>
+          <a id="guide-modal-deeplink" href="#" target="_blank" class="bg-sky-600 hover:bg-sky-500 text-white font-bold px-3 py-1.5 rounded-lg transition flex items-center gap-1 text-xs">
+            <span>공식 링크 열기</span>
+            <i class="fa-solid fa-arrow-up-right-from-square"></i>
+          </a>
+        </div>
+
+        <div>
+          <label class="block font-bold text-slate-700 mb-1.5">30초 초간단 단계별 가이드</label>
+          <ol id="guide-modal-steps" class="space-y-2 list-decimal list-inside text-slate-700 bg-slate-50 p-3.5 rounded-xl border border-slate-200">
+            <!-- Dynamic steps -->
+          </ol>
+        </div>
+
+        <div class="bg-amber-50 p-3 rounded-xl border border-amber-200 text-amber-900">
+          <p class="font-bold flex items-center gap-1"><i class="fa-solid fa-lightbulb"></i> 꿀팁 안내</p>
+          <p class="mt-1 leading-relaxed" id="guide-modal-tip">해지 신청 후에도 기존 결제 주기 만료일까지 서비스가 유지됩니다.</p>
+        </div>
+      </div>
+
+      <div class="flex items-center justify-between pt-3 border-t border-slate-100">
+        <button onclick="dismissCurrentAlert()" class="px-4 py-2 rounded-xl text-xs font-semibold text-slate-500 hover:bg-slate-100 transition">이번 달은 유지</button>
+        <button onclick="confirmDefenseAction()" class="px-5 py-2.5 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white transition shadow-sm flex items-center gap-1.5">
+          <i class="fa-solid fa-shield-check"></i>
+          <span>해지 완료 (방어 성공 등록)</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Settings Modal (API Keys & 4 Notion DB IDs) -->
+  <div id="settings-modal" class="hidden fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 flex flex-col gap-4">
+      <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+        <div class="flex items-center gap-2">
+          <div class="w-8 h-8 rounded-lg bg-sky-100 text-sky-600 flex items-center justify-center font-bold">
+            <i class="fa-solid fa-sliders"></i>
+          </div>
+          <div>
+            <h3 class="font-bold text-slate-900 text-sm">API 환경 설정 및 노션 4대 DB 설정</h3>
+            <p class="text-[11px] text-slate-500">실시간 Vision 파싱, AI 리밸런싱 및 노션 4종 DB 연동</p>
+          </div>
+        </div>
+        <button onclick="closeSettingsModal()" class="text-slate-400 hover:text-slate-600 text-lg">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <div class="flex flex-col gap-3 text-xs max-h-[70vh] overflow-y-auto pr-1">
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">OpenRouter API Key</label>
+          <input id="cfg-openrouter-key" type="password" placeholder="sk-or-v1-..." class="w-full p-2.5 rounded-xl border border-slate-300 font-mono text-xs focus:border-sky-500">
+        </div>
+
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">Notion API Integration Token (Secret)</label>
+          <input id="cfg-notion-key" type="password" placeholder="secret_..." class="w-full p-2.5 rounded-xl border border-slate-300 font-mono text-xs focus:border-sky-500">
+        </div>
+
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">1. Notion [Profiles] DB ID</label>
+          <input id="cfg-notion-profiles-db" type="text" placeholder="예: 32자리 UUID 또는 노션 DB URL" class="w-full p-2.5 rounded-xl border border-slate-300 font-mono text-xs focus:border-sky-500">
+        </div>
+
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">2. Notion [Subscriptions] DB ID</label>
+          <input id="cfg-notion-db" type="text" placeholder="예: 32자리 UUID 또는 노션 DB URL" class="w-full p-2.5 rounded-xl border border-slate-300 font-mono text-xs focus:border-sky-500">
+        </div>
+
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">3. Notion [AI Reports] DB ID</label>
+          <input id="cfg-notion-reports-db" type="text" placeholder="예: 32자리 UUID 또는 노션 DB URL" class="w-full p-2.5 rounded-xl border border-slate-300 font-mono text-xs focus:border-sky-500">
+        </div>
+
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">4. Notion [Savings History] DB ID</label>
+          <input id="cfg-notion-savings-db" type="text" placeholder="예: 32자리 UUID 또는 노션 DB URL" class="w-full p-2.5 rounded-xl border border-slate-300 font-mono text-xs focus:border-sky-500">
+        </div>
+      </div>
+
+      <div class="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+        <button onclick="closeSettingsModal()" class="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 transition">닫기</button>
+        <button onclick="saveSettings()" class="px-5 py-2 rounded-xl text-xs font-bold bg-sky-600 hover:bg-sky-500 text-white transition shadow-sm">설정 저장</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer class="bg-white border-t border-slate-200 py-4 mt-8">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-wrap items-center justify-between text-xs text-slate-500 gap-2">
+      <p>대학생 스마트 구독 &amp; 고정 지출 리밸런싱 AI · PRD Step 1, 2, 3 전체 완벽 구현</p>
+      <div class="flex items-center gap-4">
+        <span><i class="fa-brands fa-notion text-black mr-1"></i> Notion 4대 DB 연동 완료</span>
+        <span><i class="fa-solid fa-server text-emerald-500 mr-1"></i> Python Server Port 8000</span>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Frontend JavaScript Logic -->
+  <script>
+    const CATEGORIES = ["OTT", "음원", "생산성/AI", "클라우드/저장소", "쇼핑/멤버십", "도서/교육", "통신/생활", "기타"];
+    let currentStage = 1;
+    let currentInputTab = 'image';
+    let selectedImageBase64 = null;
+    let selectedFilename = '';
+    let currentParsedData = null;
+    let currentSubscriptions = [];
+    let latestReport = null;
+    let currentProfile = {};
+    let activeAlertItem = null;
+    let areaChartInstance = null;
+    let donutChartInstance = null;
+
+    document.addEventListener('DOMContentLoaded', () => {
+      fetchConfig();
+      fetchProfile();
+      refreshSubscriptions();
+      setupCategoryChips();
+      fetchD3Alerts();
+      fetchSavingsTracker();
+      runAiRebalanceAnalysis(false);
+    });
+
+    // Stage Switcher (Step 1, Step 2, Step 3)
+    function switchStage(stage) {
+      currentStage = stage;
+      const v1 = document.getElementById('view-step-1');
+      const v2 = document.getElementById('view-step-2');
+      const v3 = document.getElementById('view-step-3');
+
+      const b1 = document.getElementById('step-btn-1');
+      const b2 = document.getElementById('step-btn-2');
+      const b3 = document.getElementById('step-btn-3');
+
+      [v1, v2, v3].forEach(v => v.classList.add('hidden'));
+      [b1, b2, b3].forEach(b => {
+        b.className = "px-3 py-1.5 rounded-lg font-medium text-slate-300 hover:text-white flex items-center gap-1.5 transition";
+      });
+
+      if (stage === 1) {
+        v1.classList.remove('hidden');
+        b1.className = "px-3 py-1.5 rounded-lg font-bold flex items-center gap-1.5 transition bg-sky-500 text-white shadow-sm";
+      } else if (stage === 2) {
+        v2.classList.remove('hidden');
+        b2.className = "px-3 py-1.5 rounded-lg font-bold flex items-center gap-1.5 transition bg-emerald-600 text-white shadow-sm";
+        renderZombieScoreboard();
+      } else if (stage === 3) {
+        v3.classList.remove('hidden');
+        b3.className = "px-3 py-1.5 rounded-lg font-bold flex items-center gap-1.5 transition bg-indigo-600 text-white shadow-sm";
+        fetchD3Alerts();
+        fetchSavingsTracker();
+      }
+    }
+
+    // Toast Utility
+    function showToast(title, message, type = 'info') {
+      const container = document.getElementById('toast-container');
+      const toast = document.createElement('div');
+      
+      const icons = {
+        success: 'fa-circle-check text-emerald-500',
+        error: 'fa-circle-xmark text-rose-500',
+        warning: 'fa-triangle-exclamation text-amber-500',
+        info: 'fa-circle-info text-sky-500'
+      };
+
+      const borders = {
+        success: 'border-emerald-200 bg-emerald-50/95 text-emerald-950',
+        error: 'border-rose-200 bg-rose-50/95 text-rose-950',
+        warning: 'border-amber-200 bg-amber-50/95 text-amber-950',
+        info: 'border-sky-200 bg-sky-50/95 text-sky-950'
+      };
+
+      toast.className = `pointer-events-auto p-4 rounded-2xl shadow-xl border ${borders[type] || borders.info} flex items-start gap-3 transition-all duration-300 transform translate-y-2 opacity-0`;
+      toast.innerHTML = `
+        <div class="text-lg mt-0.5"><i class="fa-solid ${icons[type] || icons.info}"></i></div>
+        <div class="flex-1 text-xs">
+          <p class="font-bold text-sm">${title}</p>
+          <p class="mt-0.5 opacity-90 leading-relaxed">${message}</p>
+        </div>
+        <button onclick="this.parentElement.remove()" class="opacity-50 hover:opacity-100 text-sm">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      `;
+
+      container.appendChild(toast);
+      requestAnimationFrame(() => toast.classList.remove('translate-y-2', 'opacity-0'));
+      setTimeout(() => {
+        toast.classList.add('opacity-0', 'translate-y-2');
+        setTimeout(() => toast.remove(), 300);
+      }, 5000);
+    }
+
+    // PRD Step 3: Profile Handling
+    async function fetchProfile() {
+      try {
+        const resp = await fetch('/api/profile');
+        const data = await resp.json();
+        currentProfile = data.profile || {};
+        document.getElementById('prof-name').value = currentProfile.student_name || '김대학';
+        document.getElementById('prof-income').value = currentProfile.income || 850000;
+        document.getElementById('prof-budget').value = currentProfile.budget || 35000;
+        document.getElementById('stat-budget-val').textContent = `₩${(currentProfile.budget || 35000).toLocaleString()}`;
+        document.getElementById('stat-lifecycle-text').textContent = currentProfile.lifecycle_mode || '일반학기';
+        selectLifecycle(currentProfile.lifecycle_mode || '일반학기', false);
+      } catch (err) {
+        console.error("Profile fetch error:", err);
+      }
+    }
+
+    function selectLifecycle(mode, updateUIOnly = true) {
+      if (currentProfile) currentProfile.lifecycle_mode = mode;
+      ['일반학기', '시험기간', '방학'].forEach(m => {
+        const btn = document.getElementById(`life-btn-${m}`);
+        if (!btn) return;
+        if (m === mode) {
+          btn.className = "p-2 rounded-xl text-center font-bold border transition bg-sky-50 border-sky-400 text-sky-800 shadow-sm";
+        } else {
+          btn.className = "p-2 rounded-xl text-center font-medium border border-slate-200 text-slate-600 hover:bg-slate-50 transition";
+        }
+      });
+      document.getElementById('stat-lifecycle-text').textContent = mode;
+
+      if (mode === '시험기간') {
+        showToast("시험기간 모드 감지", "중간/기말고사 기간에는 OTT 및 음원 구독 일시정지를 통해 갱신을 방어하는 것을 권장합니다!", "info");
+      }
+    }
+
+    async function saveProfile() {
+      const payload = {
+        student_name: document.getElementById('prof-name').value.trim() || '김대학',
+        income: parseInt(document.getElementById('prof-income').value) || 850000,
+        budget: parseInt(document.getElementById('prof-budget').value) || 35000,
+        lifecycle_mode: currentProfile.lifecycle_mode || '일반학기',
+        sync_notion: true
+      };
+
+      try {
+        const resp = await fetch('/api/profile', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify(payload)
+        });
+        const data = await resp.json();
+        if (data.success) {
+          showToast("프로필 저장 완료", "대학생 프로필 및 목표 예산이 노션 [Profiles] DB와 동기화되었습니다.", "success");
+          fetchProfile();
+          fetchSavingsTracker();
+        }
+      } catch (err) {
+        showToast("프로필 저장 실패", err.message, "error");
+      }
+    }
+
+    // PRD Step 3: D-3 Alerts & 30-sec Cancellation Guides
+    async function fetchD3Alerts() {
+      try {
+        const resp = await fetch('/api/d3-alerts');
+        const data = await resp.json();
+        renderD3Alerts(data.alerts || [], data.defense_stats || {});
+      } catch (err) {
+        console.error("D-3 alerts error:", err);
+      }
+    }
+
+    function renderD3Alerts(alerts, defenseStats) {
+      const container = document.getElementById('d3-alerts-container');
+      container.innerHTML = '';
+
+      if (defenseStats.defense_rate !== undefined) {
+        document.getElementById('stat-defense-rate').textContent = `${defenseStats.defense_rate}%`;
+        document.getElementById('d3-badge-rate').textContent = `${defenseStats.defense_rate}%`;
+      }
+
+      if (alerts.length === 0) {
+        container.innerHTML = `<p class="text-xs text-slate-400 py-2">D-3 이내에 결제 예정인 구독 항목이 없습니다.</p>`;
+        return;
+      }
+
+      alerts.forEach(alert => {
+        const div = document.createElement('div');
+        div.className = "p-4 rounded-xl border border-amber-300 bg-amber-50/70 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-sm";
+        div.innerHTML = `
+          <div class="flex items-start gap-3">
+            <div class="w-10 h-10 rounded-xl bg-amber-500 text-white flex items-center justify-center font-bold text-lg shrink-0">
+              <i class="fa-solid fa-triangle-exclamation"></i>
+            </div>
+            <div>
+              <div class="flex items-center gap-2">
+                <span class="text-[10px] font-bold bg-amber-200 text-amber-900 px-2 py-0.5 rounded-full">${escapeHtml(alert.alert_type)}</span>
+                <span class="text-xs font-bold text-slate-900">${escapeHtml(alert.service_name)} (월 ₩${(alert.amount||0).toLocaleString()})</span>
+              </div>
+              <p class="text-xs text-amber-950 mt-1 font-medium">${escapeHtml(alert.message)}</p>
+            </div>
+          </div>
+
+          <div class="flex items-center gap-2 shrink-0">
+            <button onclick='openCancelGuideModal(${JSON.stringify(alert).replace(/'/g, "&#39;")})' class="bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs px-3.5 py-2 rounded-xl shadow-sm transition flex items-center gap-1.5">
+              <i class="fa-solid fa-stopwatch"></i>
+              <span>30초 초간단 해지 가이드</span>
+            </button>
+            <button onclick="recordDirectDefense(${alert.subscription_id}, '${escapeHtml(alert.service_name)}', ${alert.billing_day}, ${alert.amount})" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs px-3.5 py-2 rounded-xl shadow-sm transition flex items-center gap-1">
+              <i class="fa-solid fa-shield-check"></i>
+              <span>방어 완료</span>
+            </button>
+          </div>
+        `;
+        container.appendChild(div);
+      });
+    }
+
+    function openCancelGuideModal(alert) {
+      activeAlertItem = alert;
+      document.getElementById('guide-modal-title').textContent = `${alert.service_name} 30초 초간단 해지 가이드`;
+      document.getElementById('guide-modal-service').textContent = `${alert.service_name} 계정 및 정기결제 관리`;
+      document.getElementById('guide-modal-deeplink').href = alert.deep_link || '#';
+      document.getElementById('guide-modal-tip').textContent = alert.tip || '';
+
+      const stepsList = document.getElementById('guide-modal-steps');
+      stepsList.innerHTML = '';
+      (alert.steps || []).forEach(step => {
+        const li = document.createElement('li');
+        li.textContent = step;
+        stepsList.appendChild(li);
+      });
+
+      document.getElementById('cancel-guide-modal').classList.remove('hidden');
+    }
+
+    function closeCancelGuideModal() {
+      document.getElementById('cancel-guide-modal').classList.add('hidden');
+    }
+
+    async function confirmDefenseAction() {
+      if (!activeAlertItem) return;
+      await recordDirectDefense(
+        activeAlertItem.subscription_id,
+        activeAlertItem.service_name,
+        activeAlertItem.billing_day,
+        activeAlertItem.amount
+      );
+      closeCancelGuideModal();
+    }
+
+    async function dismissCurrentAlert() {
+      closeCancelGuideModal();
+      showToast("알림 유지", "이번 달 구독이 유지됩니다.", "info");
+    }
+
+    async function recordDirectDefense(subId, serviceName, billingDay, amount) {
+      try {
+        const resp = await fetch('/api/d3-alerts/action', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({
+            subscription_id: subId,
+            service_name: serviceName,
+            billing_day: billingDay,
+            amount: amount,
+            defended: true
+          })
+        });
+        const data = await resp.json();
+        if (data.success) {
+          showToast("자동 갱신 방어 성공!", `[${serviceName}] 해지가 확인되어 절감 내역에 ₩${(amount||0).toLocaleString()}원이 추가되었습니다!`, "success");
+          fetchD3Alerts();
+          fetchSavingsTracker();
+          refreshSubscriptions();
+        }
+      } catch (err) {
+        showToast("방어 기록 실패", err.message, "error");
+      }
+    }
+
+    // PRD Step 3: Savings Tracker Visualizations
+    async function fetchSavingsTracker() {
+      try {
+        const resp = await fetch('/api/savings-tracker');
+        const data = await resp.json();
+        renderSavingsTracker(data);
+      } catch (err) {
+        console.error("Savings tracker fetch error:", err);
+      }
+    }
+
+    function renderSavingsTracker(data) {
+      document.getElementById('tracker-achievement-percent').textContent = `${data.achievement_rate}%`;
+      document.getElementById('stat-budget-achievement').textContent = `${data.achievement_rate}%`;
+      document.getElementById('gauge-current').textContent = `₩${(data.current_spending||0).toLocaleString()}`;
+      document.getElementById('gauge-budget').textContent = `₩${(data.budget||35000).toLocaleString()}`;
+
+      const gaugePercent = Math.min(100, Math.max(10, data.achievement_rate));
+      const gaugeBar = document.getElementById('gauge-bar');
+      gaugeBar.style.width = `${gaugePercent}%`;
+      if (data.achievement_rate >= 80) {
+        gaugeBar.className = "h-3 rounded-full bg-emerald-500 transition-all duration-500";
+      } else if (data.achievement_rate >= 50) {
+        gaugeBar.className = "h-3 rounded-full bg-amber-500 transition-all duration-500";
+      } else {
+        gaugeBar.className = "h-3 rounded-full bg-rose-500 transition-all duration-500";
+      }
+
+      // Render Area Chart (6 Months Cumulative)
+      renderAreaChart(data.area_chart || []);
+      // Render Donut Chart (Category Expenses)
+      renderDonutChart(data.donut_chart || { labels: [], values: [] });
+    }
+
+    function renderAreaChart(chartData) {
+      const ctx = document.getElementById('savingsAreaChart');
+      if (!ctx) return;
+      if (areaChartInstance) areaChartInstance.destroy();
+
+      const labels = chartData.map(d => d.month);
+      const values = chartData.map(d => d.cumulative);
+
+      areaChartInstance = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: '누적 절감액 (원)',
+            data: values,
+            borderColor: '#4f46e5',
+            backgroundColor: 'rgba(79, 70, 229, 0.15)',
+            fill: true,
+            tension: 0.35,
+            pointRadius: 4,
+            pointBackgroundColor: '#4f46e5'
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false }
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              ticks: {
+                callback: v => `₩${(v / 10000).toFixed(0)}만`
+              }
+            }
+          }
+        }
+      });
+    }
+
+    function renderDonutChart(donutData) {
+      const ctx = document.getElementById('categoryDonutChart');
+      if (!ctx) return;
+      if (donutChartInstance) donutChartInstance.destroy();
+
+      const labels = donutData.labels.length ? donutData.labels : ['OTT', '음원', 'AI도구', '쇼핑'];
+      const values = donutData.values.length ? donutData.values : [17000, 14900, 29000, 7890];
+
+      donutChartInstance = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+          labels: labels,
+          datasets: [{
+            data: values,
+            backgroundColor: ['#f43f5e', '#10b981', '#6366f1', '#f59e0b', '#0ea5e9', '#8b5cf6']
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 10 } } }
+          }
+        }
+      });
+    }
+
+    // PRD Step 3: Notion 4-DB Sync All
+    async function syncAll4NotionDatabases() {
+      const btn = document.getElementById('btn-sync-all');
+      btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> <span>4대 DB 일괄 동기화 중 (99.5%+)...</span>`;
+      btn.disabled = true;
+
+      try {
+        const resp = await fetch('/api/notion/sync-all', { method: 'POST' });
+        const data = await resp.json();
+        if (data.success) {
+          document.getElementById('stat-sync-rate').textContent = `${data.sync_success_rate}%`;
+          document.getElementById('board-sync-rate').textContent = `${data.sync_success_rate}%`;
+          showToast(
+            "노션 4대 DB 일괄 동기화 성공!",
+            `총 ${data.total_operations}건 전송 완료 (동기화 성공률 ${data.sync_success_rate}% - KPI 달성!)`,
+            "success"
+          );
+        }
+      } catch (err) {
+        showToast("동기화 실패", err.message, "error");
+      } finally {
+        btn.innerHTML = `<i class="fa-solid fa-cloud-arrow-up"></i> <span>노션 4대 DB 실시간 일괄 동기화 (KPI 99.5%+)</span>`;
+        btn.disabled = false;
+      }
+    }
+
+    // Step 2 Functions
+    function renderZombieScoreboard() {
+      const container = document.getElementById('zombie-cards-container');
+      container.innerHTML = '';
+      if (currentSubscriptions.length === 0) {
+        container.innerHTML = `<div class="col-span-2 py-8 text-center text-slate-400 text-xs">구독 항목이 없습니다.</div>`;
+        return;
+      }
+      currentSubscriptions.forEach(sub => {
+        const usage = sub.usage_count || 1;
+        const cpu = Math.round(sub.cpu || (sub.amount / Math.max(usage, 1)));
+        const zombie = sub.zombie_score || 70;
+        let badgeBg = "bg-rose-50 text-rose-700 border-rose-200";
+        let statusText = "🚨 즉시 해지 (Kill)";
+        let barColor = "bg-rose-500";
+        if (zombie < 50) {
+          badgeBg = "bg-emerald-50 text-emerald-700 border-emerald-200";
+          statusText = "✅ 유지 (Keep)";
+          barColor = "bg-emerald-500";
+        } else if (zombie < 80) {
+          badgeBg = "bg-amber-50 text-amber-700 border-amber-200";
+          statusText = "🔄 파티원 전환 (Swap)";
+          barColor = "bg-amber-500";
+        }
+
+        const card = document.createElement('div');
+        card.className = "p-4 rounded-xl border border-slate-200 bg-slate-50/50 hover:bg-white transition shadow-sm flex flex-col justify-between gap-3";
+        card.innerHTML = `
+          <div class="flex items-start justify-between">
+            <div>
+              <span class="text-[10px] font-bold px-2 py-0.5 rounded-full border ${badgeBg}">${escapeHtml(sub.category)}</span>
+              <h4 class="font-extrabold text-slate-900 text-sm mt-1">${escapeHtml(sub.service_name)}</h4>
+              <p class="text-xs text-slate-500">월 ₩${(sub.amount||0).toLocaleString()} · 매월 ${sub.billing_date}일</p>
+            </div>
+            <span class="text-xs font-bold px-2.5 py-1 rounded-lg border ${badgeBg}">${statusText}</span>
+          </div>
+          <div class="bg-white p-3 rounded-xl border border-slate-200/80 flex flex-col gap-2">
+            <div class="flex items-center justify-between text-xs">
+              <span class="font-bold text-slate-600">30일 이용 횟수:</span>
+              <span class="font-black text-sky-600 text-sm"><span id="usage-val-${sub.id}">${usage}</span>회</span>
+            </div>
+            <input type="range" min="0" max="30" value="${usage}" onchange="updateSubscriptionUsage(${sub.id}, this.value)" oninput="document.getElementById('usage-val-${sub.id}').textContent = this.value" class="w-full">
+          </div>
+          <div class="grid grid-cols-2 gap-2 text-xs">
+            <div class="bg-slate-100/80 p-2.5 rounded-lg">
+              <p class="text-[11px] text-slate-500 font-medium">1회 단가(CPU)</p>
+              <p class="font-black text-slate-900 text-sm mt-0.5">₩${cpu.toLocaleString()}/회</p>
+            </div>
+            <div class="bg-slate-100/80 p-2.5 rounded-lg">
+              <div class="flex items-center justify-between text-[11px] text-slate-500">
+                <span class="font-medium">좀비 지수</span>
+                <span class="font-bold">${zombie}점</span>
+              </div>
+              <div class="w-full bg-slate-200 h-2 rounded-full overflow-hidden mt-1.5">
+                <div class="${barColor} h-2 rounded-full" style="width: ${zombie}%"></div>
+              </div>
+            </div>
+          </div>
+        `;
+        container.appendChild(card);
+      });
+    }
+
+    async function updateSubscriptionUsage(subId, newUsage) {
+      try {
+        const resp = await fetch(`/api/subscriptions/${subId}/usage`, {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ usage_count: parseInt(newUsage) })
+        });
+        const data = await resp.json();
+        if (data.success) refreshSubscriptions();
+      } catch (err) {
+        console.error("Usage update failed:", err);
+      }
+    }
+
+    async function runAiRebalanceAnalysis(showToasts = true) {
+      const btn = document.getElementById('btn-run-rebalance');
+      if (btn) {
+        btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> <span>Nemotron AI 생성 중...</span>`;
+        btn.disabled = true;
+      }
+      try {
+        const resp = await fetch('/api/rebalance/analyze', { method: 'POST' });
+        const data = await resp.json();
+        latestReport = data;
+        renderAiReport(data);
+        if (showToasts) {
+          showToast("AI 리밸런싱 완료", `월 약 ${data.total_monthly_savings.toLocaleString()}원 절감안 도출!`, "success");
+        }
+      } catch (err) {
+        if (showToasts) showToast("분석 오류", err.message, "error");
+      } finally {
+        if (btn) {
+          btn.innerHTML = `<i class="fa-solid fa-sparkles"></i> <span>AI 리밸런싱 분석 실행</span>`;
+          btn.disabled = false;
+        }
+      }
+    }
+
+    function renderAiReport(report) {
+      if (!report) return;
+      document.getElementById('report-student-metaphor').textContent = report.student_metaphor || '';
+      document.getElementById('report-total-savings').textContent = `₩${(report.total_monthly_savings || 0).toLocaleString()}`;
+      document.getElementById('report-generation-time').textContent = `소요시간: ${report.elapsed_seconds || 0.8}s`;
+
+      const killContainer = document.getElementById('kill-list-container');
+      killContainer.innerHTML = '';
+      (report.kill_list || []).forEach((k, idx) => {
+        const itemDiv = document.createElement('div');
+        itemDiv.className = "p-3.5 rounded-xl border border-rose-200 bg-rose-50/50 flex flex-col gap-2";
+        itemDiv.innerHTML = `
+          <div class="flex items-start justify-between">
+            <div>
+              <span class="text-[10px] font-bold bg-rose-200 text-rose-900 px-2 py-0.5 rounded-full">해지 #${idx + 1}</span>
+              <h5 class="font-extrabold text-slate-900 text-sm mt-1">${escapeHtml(k.service_name)}</h5>
+            </div>
+            <span class="text-xs font-black text-rose-600 block">-₩${(k.monthly_savings||0).toLocaleString()}/월</span>
+          </div>
+          <p class="text-xs text-slate-700">${escapeHtml(k.reason)}</p>
+          <label class="flex items-center gap-2 pt-1 border-t border-rose-100 text-xs font-bold text-slate-800 cursor-pointer">
+            <input type="checkbox" checked class="rounded text-rose-600 rec-checkbox">
+            <span>이 권고안 채택</span>
+          </label>
+        `;
+        killContainer.appendChild(itemDiv);
+      });
+
+      const swapContainer = document.getElementById('swap-list-container');
+      swapContainer.innerHTML = '';
+      (report.swap_list || []).forEach((s, idx) => {
+        const itemDiv = document.createElement('div');
+        itemDiv.className = "p-3.5 rounded-xl border border-sky-200 bg-sky-50/50 flex flex-col gap-2";
+        itemDiv.innerHTML = `
+          <div class="flex items-start justify-between">
+            <div>
+              <span class="text-[10px] font-bold bg-sky-200 text-sky-900 px-2 py-0.5 rounded-full">전환 #${idx + 1}</span>
+              <h5 class="font-extrabold text-slate-900 text-sm mt-1">${escapeHtml(s.service_name)}</h5>
+            </div>
+            <span class="text-xs font-black text-emerald-600 block">-₩${(s.monthly_savings||0).toLocaleString()}/월</span>
+          </div>
+          <div class="bg-white p-2.5 rounded-lg border border-sky-100 text-xs">
+            <p class="font-bold text-sky-800">${escapeHtml(s.recommended_option)}</p>
+            <p class="text-[11px] text-slate-600 mt-1">${escapeHtml(s.tip || '')}</p>
+          </div>
+          <label class="flex items-center gap-2 pt-1 border-t border-sky-100 text-xs font-bold text-slate-800 cursor-pointer">
+            <input type="checkbox" checked class="rounded text-sky-600 rec-checkbox">
+            <span>이 권고안 채택</span>
+          </label>
+        `;
+        swapContainer.appendChild(itemDiv);
+      });
+    }
+
+    async function commitAdoptions() {
+      if (!latestReport || !latestReport.id) return;
+      const checkboxes = document.querySelectorAll('.rec-checkbox:checked');
+      try {
+        const resp = await fetch(`/api/reports/${latestReport.id}/adopt`, {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ adopted_count: checkboxes.length })
+        });
+        const data = await resp.json();
+        if (data.success) {
+          showToast("권고안 채택 완료", `채택률 ${data.adoption_rate}% (KPI 달성!)`, "success");
+        }
+      } catch (err) {
+        showToast("채택 오류", err.message, "error");
+      }
+    }
+
+    async function syncCurrentReportToNotion() {
+      if (!latestReport || !latestReport.id) return;
+      try {
+        const resp = await fetch(`/api/reports/${latestReport.id}/sync-notion`, { method: 'POST' });
+        const data = await resp.json();
+        if (data.success) {
+          showToast("노션 연동 성공", "노션 [AI Reports]에 보고서가 동기화되었습니다!", "success");
+        }
+      } catch (err) {
+        showToast("연동 오류", err.message, "error");
+      }
+    }
+
+    // Step 1 Functions
+    function switchInputTab(tab) {
+      currentInputTab = tab;
+      ['image', 'text', 'manual'].forEach(t => {
+        const btn = document.getElementById(`tab-btn-${t}`);
+        const content = document.getElementById(`tab-content-${t}`);
+        if (t === tab) {
+          btn.className = "px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 bg-white text-sky-600 shadow-sm border border-slate-200/80";
+          content.classList.remove('hidden');
+          content.classList.add('flex');
+        } else {
+          btn.className = "px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:text-slate-900 transition flex items-center gap-1.5";
+          content.classList.add('hidden');
+          content.classList.remove('flex');
+        }
+      });
+    }
+
+    function handleDragOver(e) {
+      e.preventDefault();
+      document.getElementById('dropzone').classList.add('border-sky-500', 'bg-sky-50/40');
+    }
+    function handleDragLeave(e) {
+      e.preventDefault();
+      document.getElementById('dropzone').classList.remove('border-sky-500', 'bg-sky-50/40');
+    }
+    function handleDrop(e) {
+      e.preventDefault();
+      document.getElementById('dropzone').classList.remove('border-sky-500', 'bg-sky-50/40');
+      if (e.dataTransfer.files && e.dataTransfer.files[0]) processUploadedImage(e.dataTransfer.files[0]);
+    }
+    function handleFileSelect(e) {
+      if (e.target.files && e.target.files[0]) processUploadedImage(e.target.files[0]);
+    }
+
+    function processUploadedImage(file) {
+      if (file.size > 10 * 1024 * 1024) {
+        showToast("크기 초과", "이미지는 최대 10MB 이하만 가능합니다.", "error");
+        return;
+      }
+      selectedFilename = file.name;
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        const img = new Image();
+        img.onload = function() {
+          const canvas = document.createElement('canvas');
+          let width = img.width, height = img.height;
+          const maxDim = 1920;
+          if (width > maxDim || height > maxDim) {
+            if (width > height) { height = Math.round((height * maxDim) / width); width = maxDim; }
+            else { width = Math.round((width * maxDim) / height); height = maxDim; }
+          }
+          canvas.width = width; canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, width, height);
+
+          selectedImageBase64 = canvas.toDataURL('image/jpeg', 0.88);
+          document.getElementById('image-preview').src = selectedImageBase64;
+          document.getElementById('preview-filename').textContent = selectedFilename;
+          const compressedSize = Math.round(selectedImageBase64.length * 3 / 4 / 1024);
+          document.getElementById('preview-filesize').textContent = `${compressedSize} KB (압축됨)`;
+          document.getElementById('image-preview-wrapper').classList.remove('hidden');
+          document.getElementById('image-preview-wrapper').classList.add('flex');
+        };
+        img.src = e.target.result;
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function clearSelectedImage() {
+      selectedImageBase64 = null;
+      selectedFilename = '';
+      document.getElementById('image-preview').src = '';
+      document.getElementById('image-preview-wrapper').classList.add('hidden');
+      document.getElementById('file-input').value = '';
+    }
+
+    function loadSampleImage(type) {
+      const canvas = document.createElement('canvas');
+      canvas.width = 600; canvas.height = 400;
+      const ctx = canvas.getContext('2d');
+      if (type === 'low_quality') {
+        ctx.fillStyle = '#475569'; ctx.fillRect(0, 0, 600, 400); ctx.filter = 'blur(16px)';
+        ctx.fillStyle = '#ffffff'; ctx.font = '24px sans-serif'; ctx.fillText("어둡고 흐릿한 영수증...", 100, 200);
+        selectedFilename = 'blurry_unrecognizable.jpg';
+      } else {
+        ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, 600, 400);
+        ctx.fillStyle = '#f8fafc'; ctx.fillRect(20, 20, 560, 360);
+        ctx.strokeStyle = '#cbd5e1'; ctx.lineWidth = 2; ctx.strokeRect(20, 20, 560, 360);
+        ctx.fillStyle = '#0f172a'; ctx.font = 'bold 22px Pretendard, sans-serif';
+        if (type === 'netflix') {
+          ctx.fillText("NETFLIX 영수증", 50, 70);
+          ctx.font = '16px Pretendard, sans-serif'; ctx.fillStyle = '#475569';
+          ctx.fillText("상품: 넷플릭스 프리미엄 멤버십 (월간)", 50, 120);
+          ctx.fillText("결제일: 매월 15일 (2026.11.15 결제)", 50, 160);
+          ctx.font = 'bold 24px Pretendard, sans-serif'; ctx.fillStyle = '#0284c7';
+          ctx.fillText("결제 금액: ₩17,000", 50, 260);
+          selectedFilename = 'netflix_receipt_sample.png';
+        } else if (type === 'youtube') {
+          ctx.fillText("YouTube 결제 영수증", 50, 70);
+          ctx.font = '16px Pretendard, sans-serif'; ctx.fillStyle = '#475569';
+          ctx.fillText("서비스: 유튜브 프리미엄 (YouTube Premium)", 50, 120);
+          ctx.fillText("정기결제일: 매월 28일", 50, 160);
+          ctx.font = 'bold 24px Pretendard, sans-serif'; ctx.fillStyle = '#0284c7';
+          ctx.fillText("결제 금액: ₩14,900", 50, 260);
+          selectedFilename = 'youtube_receipt_sample.png';
+        } else if (type === 'chatgpt') {
+          ctx.fillText("OpenAI Invoice", 50, 70);
+          ctx.font = '16px Pretendard, sans-serif'; ctx.fillStyle = '#475569';
+          ctx.fillText("Description: ChatGPT Plus Subscription", 50, 120);
+          ctx.fillText("Billing Date: 5th of every month", 50, 160);
+          ctx.font = 'bold 24px Pretendard, sans-serif'; ctx.fillStyle = '#0284c7';
+          ctx.fillText("Amount: 29,000원", 50, 260);
+          selectedFilename = 'chatgpt_invoice_sample.png';
+        }
+      }
+      selectedImageBase64 = canvas.toDataURL('image/jpeg', 0.9);
+      document.getElementById('image-preview').src = selectedImageBase64;
+      document.getElementById('preview-filename').textContent = selectedFilename;
+      document.getElementById('preview-filesize').textContent = `38 KB (테스트)`;
+      document.getElementById('image-preview-wrapper').classList.remove('hidden');
+      document.getElementById('image-preview-wrapper').classList.add('flex');
+      showToast("샘플 로드", `${selectedFilename} 프리셋 준비 완료`, "info");
+    }
+
+    function handleTextInputChange(text) {
+      const match = text.match(/(?:₩|￦|\$)\s*([0-9]{1,3}(?:,[0-9]{3})+|[0-9]+)|([0-9]{1,3}(?:,[0-9]{3})+|[0-9]+)\s*(?:원|KRW)/);
+      const amountBadge = document.getElementById('detected-amounts-badge');
+      if (match) {
+        document.getElementById('detected-amounts-val').textContent = `${match[1] || match[2]}원`;
+        amountBadge.classList.remove('hidden');
+      } else {
+        amountBadge.classList.add('hidden');
+      }
+      const piiWarning = document.getElementById('pii-live-warning');
+      if (/\b(?:\d{4}[-\s]?){3}\d{4}\b/.test(text) || /\b\d{6}[-\s]?[1-4]\d{6}\b/.test(text)) {
+        piiWarning.classList.remove('hidden');
+      } else {
+        piiWarning.classList.add('hidden');
+      }
+    }
+
+    function loadSampleText(type) {
+      const textarea = document.getElementById('text-input');
+      if (type === 'netflix_sms') textarea.value = `[KB국민카드] 11/15 14:20 넷플릭스 17,000원 결제완료\n카드번호: 9410-5211-9876-1234\n매월 15일 정기결제`;
+      else if (type === 'youtube_sms') textarea.value = `[신한카드 승인] 10/28 09:12 유튜브 프리미엄 14,900원 결제 완료\n정기결제일: 매월 28일`;
+      else if (type === 'coupang_sms') textarea.value = `[카카오페이] 쿠팡 와우멤버십 월회비 7,890원 자동결제 완료\n결제일: 12월 01일`;
+      else if (type === 'rrn_test') textarea.value = `[영수증 인증] 홍길동 (주민번호: 991231-1029384) 어도비 CC 학생할인 26,400원 결제일: 매월 10일`;
+      handleTextInputChange(textarea.value);
+    }
+
+    async function parseImage() {
+      if (!selectedImageBase64) return showToast("이미지 누락", "영수증 이미지를 업로드해주세요.", "warning");
+      const btn = document.getElementById('btn-parse-image');
+      btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> <span>Vision AI 파싱 중...</span>`;
+      btn.disabled = true;
+      try {
+        const resp = await fetch('/api/parse', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ image_base64: selectedImageBase64, text: selectedFilename })
+        });
+        handleParsedResult(await resp.json());
+      } catch (err) { showToast("오류", err.message, "error"); }
+      finally { btn.innerHTML = `<i class="fa-solid fa-wand-magic-sparkles"></i> <span>OpenRouter Vision AI로 영수증 파싱 실행</span>`; btn.disabled = false; }
+    }
+
+    async function parseText() {
+      const text = document.getElementById('text-input').value.trim();
+      if (!text) return showToast("텍스트 누락", "문자를 입력해주세요.", "warning");
+      const btn = document.getElementById('btn-parse-text');
+      btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> <span>파싱 진행 중...</span>`;
+      btn.disabled = true;
+      try {
+        const resp = await fetch('/api/parse', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ text })
+        });
+        handleParsedResult(await resp.json());
+      } catch (err) { showToast("오류", err.message, "error"); }
+      finally { btn.innerHTML = `<i class="fa-solid fa-brain"></i> <span>결제 문자 AI 파싱 실행</span>`; btn.disabled = false; }
+    }
+
+    function handleParsedResult(data) {
+      currentParsedData = data;
+      if (data.pii_detected) showToast("개인정보 보호", "카드번호/주민번호 마스킹(****) 처리됨", "info");
+      if (data.error_code === "ERR_VISION_LOW_CONFIDENCE" || data.confidence_score < 0.6) {
+        showToast("저화질 식별 불가", "수동 입력 모드로 전환되었습니다.", "warning");
+        switchInputTab('manual');
+        document.getElementById('manual-name').value = data.service_name || '';
+        document.getElementById('manual-amount').value = data.amount || '';
+        document.getElementById('manual-date').value = data.billing_date || 1;
+      } else {
+        showToast("파싱 완료", `${data.service_name} (${data.amount.toLocaleString()}원) 완료`, "success");
+      }
+      document.getElementById('review-empty-state').classList.add('hidden');
+      document.getElementById('review-active-card').classList.remove('hidden');
+      document.getElementById('review-actions-group').classList.remove('hidden');
+      document.getElementById('edit-service-name').value = data.service_name || '';
+      document.getElementById('edit-amount').value = data.amount || 0;
+      document.getElementById('edit-billing-date').value = data.billing_date || 1;
+      document.getElementById('review-model-used').textContent = data.model_used || 'OpenRouter AI';
+      document.getElementById('review-elapsed-time').textContent = `${data.elapsed_seconds || 0.5}s`;
+      const confScore = Math.round((data.confidence_score || 0.9) * 100);
+      document.getElementById('review-confidence-pill').textContent = `신뢰도 ${confScore}%`;
+      highlightCategoryChip(data.category || '기타');
+    }
+
+    function setupCategoryChips() {
+      const container = document.getElementById('category-chips-group');
+      container.innerHTML = '';
+      CATEGORIES.forEach(cat => {
+        const chip = document.createElement('button');
+        chip.type = 'button'; chip.id = `chip-${cat}`;
+        chip.className = "text-xs px-3 py-1.5 rounded-xl font-medium border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 transition";
+        chip.textContent = cat;
+        chip.onclick = () => selectCategoryChip(cat);
+        container.appendChild(chip);
+      });
+    }
+
+    function selectCategoryChip(category) {
+      if (!currentParsedData) currentParsedData = {};
+      currentParsedData.category = category;
+      highlightCategoryChip(category);
+    }
+
+    function highlightCategoryChip(category) {
+      CATEGORIES.forEach(cat => {
+        const chip = document.getElementById(`chip-${cat}`);
+        if (!chip) return;
+        chip.className = (cat === category) ?
+          "text-xs px-3 py-1.5 rounded-xl font-bold border border-sky-400 bg-sky-50 text-sky-700 shadow-sm" :
+          "text-xs px-3 py-1.5 rounded-xl font-medium border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 transition";
+      });
+    }
+
+    function submitManualEntry() {
+      const name = document.getElementById('manual-name').value.trim();
+      if (!name) return showToast("입력 누락", "서비스명을 입력해주세요.", "warning");
+      handleParsedResult({
+        service_name: name,
+        category: document.getElementById('manual-category').value,
+        amount: parseInt(document.getElementById('manual-amount').value) || 0,
+        billing_cycle: "월간",
+        billing_date: parseInt(document.getElementById('manual-date').value) || 1,
+        confidence_score: 1.0,
+        model_used: "수동 직접 입력",
+        elapsed_seconds: 0.1
+      });
+    }
+
+    async function saveAndSyncToNotion() {
+      const payload = getCardPayload();
+      payload.sync_notion = true;
+      try {
+        const resp = await fetch('/api/subscriptions', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify(payload)
+        });
+        const data = await resp.json();
+        if (data.success) {
+          showToast("노션 연동 완료", `[${payload.service_name}] 등록 성공!`, "success");
+          resetReviewCard();
+          refreshSubscriptions();
+        }
+      } catch (err) { showToast("실패", err.message, "error"); }
+    }
+
+    async function saveToLocalOnly() {
+      const payload = getCardPayload();
+      payload.sync_notion = false;
+      try {
+        const resp = await fetch('/api/subscriptions', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify(payload)
+        });
+        const data = await resp.json();
+        if (data.success) {
+          showToast("로컬 저장 완료", `[${payload.service_name}] 저장 완료!`, "success");
+          resetReviewCard();
+          refreshSubscriptions();
+        }
+      } catch (err) { showToast("실패", err.message, "error"); }
+    }
+
+    function getCardPayload() {
+      const selectedChip = CATEGORIES.find(c => {
+        const el = document.getElementById(`chip-${c}`);
+        return el && el.classList.contains('bg-sky-50');
+      }) || '기타';
+      return {
+        service_name: document.getElementById('edit-service-name').value.trim() || '미지정 서비스',
+        category: selectedChip,
+        amount: parseInt(document.getElementById('edit-amount').value) || 0,
+        billing_cycle: '월간',
+        billing_date: parseInt(document.getElementById('edit-billing-date').value) || 1,
+        confidence_score: currentParsedData?.confidence_score || 0.95,
+        raw_input: currentParsedData?.clean_text || selectedFilename || '',
+        input_type: currentInputTab
+      };
+    }
+
+    function resetReviewCard() {
+      currentParsedData = null;
+      document.getElementById('review-active-card').classList.add('hidden');
+      document.getElementById('review-actions-group').classList.add('hidden');
+      document.getElementById('review-empty-state').classList.remove('hidden');
+      document.getElementById('review-confidence-pill').textContent = '대기 중';
+    }
+
+    async function refreshSubscriptions() {
+      try {
+        const resp = await fetch('/api/subscriptions');
+        const data = await resp.json();
+        currentSubscriptions = data.items || [];
+        renderSubscriptionsTable(currentSubscriptions);
+        document.getElementById('stat-total-spending').textContent = `₩${(data.stats.total_monthly || 0).toLocaleString()}`;
+        document.getElementById('table-count-badge').textContent = `${data.stats.count || 0}건`;
+        if (currentStage === 2) renderZombieScoreboard();
+        fetchSavingsTracker();
+      } catch (err) { console.error("Subs fetch error:", err); }
+    }
+
+    function renderSubscriptionsTable(items) {
+      const tbody = document.getElementById('subscriptions-table-body');
+      tbody.innerHTML = '';
+      if (items.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="7" class="py-8 text-center text-slate-400 text-xs">등록된 구독 내역이 없습니다.</td></tr>`;
+        return;
+      }
+      items.forEach(item => {
+        const tr = document.createElement('tr');
+        tr.className = "hover:bg-slate-50 transition";
+        tr.innerHTML = `
+          <td class="py-3 px-4 font-bold text-slate-900">${escapeHtml(item.service_name)}</td>
+          <td class="py-3 px-4"><span class="text-[11px] px-2 py-0.5 rounded-full font-semibold border bg-slate-100 text-slate-700">${escapeHtml(item.category)}</span></td>
+          <td class="py-3 px-4 font-bold text-slate-800">₩${(item.amount || 0).toLocaleString()}</td>
+          <td class="py-3 px-4 text-xs">매월 <strong class="text-sky-600">${item.billing_date}일</strong></td>
+          <td class="py-3 px-4 text-xs font-mono font-bold ${item.confidence_score >= 0.8 ? 'text-emerald-600' : 'text-amber-600'}">${Math.round(item.confidence_score * 100)}%</td>
+          <td class="py-3 px-4 text-xs">${item.notion_page_id ? '<span class="text-emerald-600 font-bold"><i class="fa-brands fa-notion"></i> 연동됨</span>' : '<span class="text-slate-400">로컬</span>'}</td>
+          <td class="py-3 px-4 text-right"><button onclick="deleteSubscriptionItem(${item.id})" class="text-slate-400 hover:text-rose-600"><i class="fa-solid fa-trash-can"></i></button></td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    async function deleteSubscriptionItem(subId) {
+      if (!confirm("삭제하시겠습니까?")) return;
+      try {
+        const resp = await fetch(`/api/subscriptions/${subId}`, { method: 'DELETE' });
+        if ((await resp.json()).success) { showToast("삭제 완료", "항목이 삭제되었습니다.", "info"); refreshSubscriptions(); }
+      } catch (err) { showToast("실패", err.message, "error"); }
+    }
+
+    async function seedSampleData() {
+      try {
+        const resp = await fetch('/api/seed-samples', { method: 'POST' });
+        const data = await resp.json();
+        if (data.success) {
+          showToast("샘플 데이터 로드 완료", `${data.added}개의 구독 데이터가 준비되었습니다.`, "success");
+          refreshSubscriptions();
+          runAiRebalanceAnalysis(false);
+          fetchD3Alerts();
+          fetchSavingsTracker();
+        }
+      } catch (err) { showToast("실패", err.message, "error"); }
+    }
+
+    async function fetchConfig() {
+      try {
+        const resp = await fetch('/api/config');
+        const data = await resp.json();
+        if (data.notion_profiles_db_id) document.getElementById('cfg-notion-profiles-db').value = data.notion_profiles_db_id;
+        if (data.notion_db_id) document.getElementById('cfg-notion-db').value = data.notion_db_id;
+        if (data.notion_reports_db_id) document.getElementById('cfg-notion-reports-db').value = data.notion_reports_db_id;
+        if (data.notion_savings_db_id) document.getElementById('cfg-notion-savings-db').value = data.notion_savings_db_id;
+      } catch (err) { console.error("Config fetch error:", err); }
+    }
+
+    function openSettingsModal() { document.getElementById('settings-modal').classList.remove('hidden'); }
+    function closeSettingsModal() { document.getElementById('settings-modal').classList.add('hidden'); }
+
+    async function saveSettings() {
+      const payload = {
+        OPENROUTER_API_KEY: document.getElementById('cfg-openrouter-key').value.trim(),
+        NOTION_API_KEY: document.getElementById('cfg-notion-key').value.trim(),
+        NOTION_PROFILES_DB_ID: document.getElementById('cfg-notion-profiles-db').value.trim(),
+        NOTION_SUBSCRIPTIONS_DB_ID: document.getElementById('cfg-notion-db').value.trim(),
+        NOTION_AI_REPORTS_DB_ID: document.getElementById('cfg-notion-reports-db').value.trim(),
+        NOTION_SAVINGS_HISTORY_DB_ID: document.getElementById('cfg-notion-savings-db').value.trim(),
+      };
+      try {
+        const resp = await fetch('/api/config', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify(payload)
+        });
+        if ((await resp.json()).success) {
+          showToast("설정 저장", "설정이 정상 저장되었습니다.", "success");
+          closeSettingsModal();
+        }
+      } catch (err) { showToast("실패", err.message, "error"); }
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+    }
+  </script>
+</body>
+</html>
